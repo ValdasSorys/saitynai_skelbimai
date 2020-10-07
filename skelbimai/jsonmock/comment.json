@@ -1,0 +1,9 @@
+[
+  {
+    "id": 0,
+    "text": "Lorem ipsum dolor sit amet.",
+    "user": {
+      "name": "John"
+    }
+  }
+]

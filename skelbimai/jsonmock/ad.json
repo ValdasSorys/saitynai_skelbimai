@@ -1,0 +1,18 @@
+[
+  {
+    "id": 0,
+    "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Morbi risus libero, egestas at convallis vitae, volutpat id risus. incidunt",
+    "user": {
+      "name": "John",
+      "phone": 123456789,
+      "email": "test@test.lt"
+    },
+    "category": {
+      "id": 1,
+      "name": "Automobiliai"
+    },
+    "name": "Lorem ipsum",
+    "price": 100,
+    "date": "2012-04-23"
+  }
+]

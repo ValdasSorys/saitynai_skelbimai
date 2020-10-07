@@ -1,0 +1,12 @@
+[
+  {
+    "id": 0,
+    "name": "John",
+    "username": "John123",
+    "phone": 123456789,
+    "email": "test@test.lt",
+    "usersince_date": "2012-04-21",
+    "role": "user",
+    "is_deleted": false
+  }
+]

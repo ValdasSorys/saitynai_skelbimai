@@ -1,0 +1,23 @@
+[
+  {
+    "id": 0,
+    "text": "Lorem ipsum dolor sit amet.",
+    "user": {
+      "name": "John"
+    }
+  },
+  {
+    "id": 10,
+    "text": "Lorem ipsum dolor sit amet.",
+    "user": {
+      "name": "John"
+    }
+  },
+  {
+    "id": 20,
+    "text": "Lorem ipsum dolor sit amet.",
+    "user": {
+      "name": "John"
+    }
+  }
+]
