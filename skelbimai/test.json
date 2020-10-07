@@ -1,0 +1,44 @@
+[
+  {
+    "_id": "5f7d8ef4944fdc835d61b91e",
+    "tags": [
+      "eiusmod",
+      "id"
+    ],
+    "friends": [
+      {
+        "id": 0,
+        "name": "Jordan Banks"
+      },
+      {
+        "id": 1,
+        "name": "Leann Huff"
+      },
+      {
+        "id": 2,
+        "name": "Mccormick Perez"
+      }
+    ]
+  },
+  {
+    "_id": "5f7d8ef4460c92f03782d989",
+    "tags": [
+      "cillum",
+      "non"
+    ],
+    "friends": [
+      {
+        "id": 0,
+        "name": "Marva Potter"
+      },
+      {
+        "id": 1,
+        "name": "Moore Valencia"
+      },
+      {
+        "id": 2,
+        "name": "Holden Golden"
+      }
+    ]
+  }
+]
