@@ -138,7 +138,7 @@ def getCategoryList(request):
     content_type = "application/json"
     return [result, content_type, statusCode]
     
-def createCategory(request, index):
+def createCategory(request):
     statusCode = 201 #400 401 403 409
     result = ""
     content_type = None
