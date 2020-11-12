@@ -1,4 +1,5 @@
 from django.shortcuts import render
+import jwt
 
 # Create your views here.
 from django.http import HttpResponse
@@ -49,6 +50,10 @@ def getAdList(request):
     statusCode = 200
     result = Path('skelbimai/jsonmock/adList.json').read_text(encoding = 'utf-8')
     content_type = "application/json"
+    key = 'secret'
+    encoded = jwt.encode({'some': 'payload'}, key, algorithm='HS256')
+    decoded = jwt.decode(encoded, key, algorithms='HS256')
+    result+=str(decoded)
     return [result, content_type, statusCode]
 
 def getAdByCategoryList(request, index):
