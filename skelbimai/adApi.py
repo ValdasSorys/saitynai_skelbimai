@@ -53,6 +53,7 @@ def getAdList(request):
     key = 'secret'
     encoded = jwt.encode({'some': 'payload'}, key, algorithm='HS256')
     decoded = jwt.decode(encoded, key, algorithms='HS256')
+    result+="\n"
     result+=str(decoded)
     return [result, content_type, statusCode]
 
