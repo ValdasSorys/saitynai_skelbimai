@@ -90,6 +90,7 @@ def getUserList(request):
         cursor.execute(sql)
         row = database.dictfetchall(cursor)
         if len(row) == 0:
+            cursor.close()
             return [result, content_type, 404]
         sql = "SELECT COUNT(*) as count FROM public.user"
         cursor.execute(sql)
@@ -145,11 +146,14 @@ def getClientId(request):
         row = database.dictfetchall(cursor)
         if len(row) == 1:
             if not methods.verify_password(row[0]["password"], password):
+                cursor.close()
                 return [result, content_type, 401]
             else:
                 content_type = "application/json"
+                cursor.close()
                 result = json.dumps({"client_id": row[0]["client_id"]})
         else:
+            cursor.close()
             return [result, content_type, 401]
         
     return [result, content_type, statusCode]
@@ -173,8 +177,10 @@ def getToken(request):
         row = database.dictfetchall(cursor)
         if len(row) == 1:
             if row[0]["client_id"] != client_id:
+                cursor.close()
                 return [result, content_type, 401]
         else:
+            cursor.close()
             return [result, content_type, 401]
         role = row[0]["role"]
         user_id = row[0]["id"]
@@ -207,11 +213,11 @@ def updateUser(request, index):
         return [result, content_type, 400]
     scope = auth[1]["scope"]
     user_id = auth[1]["id"]
-    #body data
+    
     if "user_admin" not in scope:
         if user_id != index:
             return [result, content_type, 403]
-
+    #body data
     body = methods.get_body(request.body)
     if body[0] == False:
         return [result, content_type, 400]
@@ -221,17 +227,17 @@ def updateUser(request, index):
     sql = "UPDATE public.user SET "
     sql_params = []
     if "name" in body:
-        if len(body["name"]) > 20  or len(body["name"]) < 6:
+        if len(body["name"]) > 20  or len(body["name"]) < 6 or not methods.is_word(body["name"], []):
             return [result, content_type, 400]
         sql += "name = %s, "
         sql_params.append(body["name"])
     if "phone" in body:
-        if len(body["phone"]) > 20  or len(body["phone"]) < 6:
+        if len(body["phone"]) > 20  or len(body["phone"]) < 6 or not methods.is_word(body["phone"], []):
             return [result, content_type, 400]
         sql += "phone = %s, "
         sql_params.append(body["phone"])
     if "email" in body:
-        if len(body["name"]) > 50  or len(body["email"]) < 6:
+        if len(body["email"]) > 50  or len(body["email"]) < 6 or not methods.is_word(body["email"], settings.EMAIL_CHARS):
             return [result, content_type, 400]
         sql += "email = %s, "
         sql_params.append(body["email"])
@@ -265,6 +271,7 @@ def deleteUser(request, index):
         cursor.execute("SELECT COUNT(*) as count FROM public.user WHERE id = {}".format(index))
         rowCount = database.dictfetchall(cursor)
         if rowCount[0]["count"] != 1:
+            cursor.close()
             return [result, content_type, 404]
         cursor.execute("UPDATE public.user SET is_deleted = 1 WHERE id = {}".format(index))
         cursor.execute("UPDATE public.ad SET is_deleted = 1 WHERE user_id = {}".format(index))
@@ -279,6 +286,7 @@ def getUser(request, index):
         cursor.execute("SELECT id, username, name, phone, email, usersince_date, role FROM public.user WHERE id = %s", [index])
         row = database.dictfetchall(cursor)
         if len(row) != 1:
+            cursor.close()
             return [result, content_type, 404]
     content_type = "application/json"
     row[0]["usersince_date"] = methods.datetime_str(row[0]["usersince_date"])
@@ -291,20 +299,16 @@ def checkCreateUser(body):
     for collumn in required_collumns:
         if collumn not in body:
             return False
-    if len(body["name"]) > 20 or len(body["name"]) < 2:
+    if len(body["name"]) > 20 or len(body["name"]) < 2 or not methods.is_word(body["name"], []):
         return False
-    if len(body["username"]) > 20 or len(body["username"]) < 6:
+    if len(body["username"]) > 20 or len(body["username"]) < 6 or not methods.is_word(body["username"], []):
         return False
-    if len(body["password"]) > 50 or len(body["username"]) < 6:
+    if len(body["password"]) > 50 or len(body["password"]) < 6 or not methods.is_word(body["password"], []):
         return False
-    if len(body["phone"]) > 20 or len(body["phone"]) < 6:
+    if len(body["phone"]) > 20 or len(body["phone"]) < 6 or not methods.is_word(body["phone"], []):
         return False
-    if len(body["email"]) > 50 or len(body["phone"]) < 6:
-        return False
-    for collumn in required_collumns:
-        if isinstance(body[collumn], str):
-            if body[collumn].find(' ') != -1:
-                return False
+    if len(body["email"]) > 50 or len(body["phone"]) < 6 or not methods.is_word(body["email"], settings.EMAIL_CHARS):
+        return False    
     return True
     
 

@@ -81,7 +81,6 @@ def getAdList(request):
         sql = "SELECT COUNT(*) as count FROM public.ad WHERE is_deleted = 0"
         cursor.execute(sql)
         rowCount = database.dictfetchall(cursor)
-
     for x in row:
         x["date"] = methods.datetime_str(x["date"])
     result = methods.dumpJson({"totalCount": rowCount[0]["count"],"ads": row})
@@ -97,22 +96,169 @@ def createAd(request):
     statusCode = 201 #400 401 403 404
     result = ""
     content_type = None
+    if "Authorization" in request.headers:
+        auth = methods.decode_token(request.headers["Authorization"])
+        if auth[0] == False:
+            return [result, content_type, 401]
+    else:
+        return [result, content_type, 400]
+    scope = auth[1]["scope"]
+    user_id = auth[1]["id"]
+    #body data
+    body = methods.get_body(request.body)
+    if body[0] == False:
+        return [result, content_type, 400]
+    body_empty = body[0]
+    body = body[1]
+    if checkCreateAd(body) == False:
+        return [result, content_type, 400]
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT COUNT(*) as count FROM public.category WHERE id = {}".format(body["category"]))
+        categoryCount = database.dictfetchall(cursor)
+        if categoryCount[0]["count"] != 1:
+            cursor.close()
+            return [result, content_type, 400]
+        cursor.execute("INSERT INTO public.ad (name, text, category, price, date, user_id, is_deleted) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;", [body["name"], body["text"], body["category"], body["price"], methods.currentTime(), user_id, 0])
+        ad_id = database.dictfetchall(cursor)
+        cursor.execute("SELECT * FROM public.ad WHERE id = %s", [ad_id[0]["id"]])
+        row = database.dictfetchall(cursor)
+    row[0]["date"] = methods.datetime_str(row[0]["date"])
+    content_type = "application/json"
+    result = methods.dumpJson(row[0])
     return [result, content_type, statusCode]
 
 def updateAd(request, index):
     statusCode = 200 #400 401 403 404
     result = ""
     content_type = None
+
+    if "Authorization" in request.headers:
+        auth = methods.decode_token(request.headers["Authorization"])
+        if auth[0] == False:
+            return [result, content_type, 401]
+    else:
+        return [result, content_type, 400]
+
+    scope = auth[1]["scope"]
+    user_id = auth[1]["id"]
+
+    body = methods.get_body(request.body)
+    if body[0] == False:
+        return [result, content_type, 400]
+    body_empty = body[0]
+    body = body[1]
+
+    body = methods.get_body(request.body)
+    if body[0] == False:
+        return [result, content_type, 400]
+    body_empty = body[0]
+    body = body[1]
+    #update sql formation
+    sql = "UPDATE public.ad SET "
+    sql_params = []
+    if "name" in body:
+        if len(body["name"]) > 20  or len(body["name"]) < 6 or not methods.is_word(body["name"], [' ']):
+            return [result, content_type, 400]
+        sql += "name = %s, "
+        sql_params.append(body["name"])
+    if "text" in body:
+        if len(body["text"]) > 5000  or len(body["text"]) < 6:
+            return [result, content_type, 400]
+        sql += "text = %s, "
+        sql_params.append(body["text"])
+    if "category" in body:
+        if isinstance(body["category"], int) == False:
+            return [result, content_type, 400]
+        sql += "category = %s, "
+        sql_params.append(body["category"])
+    if "price" in body:
+        if isinstance(body["price"], float) == False and isinstance(body["price"], float) == False:
+            if body["price"] < 0:
+                return [result, content_type, 400]
+        sql += "price = %s, "
+        sql_params.append(body["price"])
+    sql = sql[:-2]
+    sql += " WHERE id = {}".format(index)
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT user_id FROM public.ad WHERE id = {} AND is_deleted = 0".format(index))
+        rowCount = database.dictfetchall(cursor)
+        print(rowCount)
+        if len(rowCount) != 1:
+            cursor.close()
+            return [result, content_type, 404]
+        if "user_admin" not in scope:
+            if rowCount[0]["user_id"] != user_id:
+                cursor.close()
+                return [result, content_type, 403]
+        if "category" in body:
+            cursor.execute("SELECT Count(*) as count FROM public.category WHERE id = {}".format(body["category"]))
+            rowCount = database.dictfetchall(cursor)
+            if rowCount[0]["count"] != 1:
+                cursor.close()
+                return [result, content_type, 400]
+        
+        cursor.execute(sql, sql_params)
+        cursor.execute("SELECT * FROM public.ad WHERE id = {}".format(index))
+        row = database.dictfetchall(cursor)
+        row[0]["date"] = methods.datetime_str(row[0]["date"])
+        content_type = "application/json"
+        result = methods.dumpJson(row[0])
     return [result, content_type, statusCode]
 
 def getAd(request, index):
     statusCode = 200 #404
-    result = Path('skelbimai/jsonmock/ad.json').read_text(encoding = 'utf-8')
-    content_type = "application/json"
+    content_type = None
+    result = ""
+    
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT * FROM public.ad WHERE id = {} AND is_deleted = 0".format(index))
+        row = database.dictfetchall(cursor)
+        if (len(row) == 0):
+            cursor.close()
+            return [result, content_type, 404]
+    row[0]["date"] = methods.datetime_str(row[0]["date"])
+    content_type = "application_json"
+    result = methods.dumpJson(row[0])
     return [result, content_type, statusCode]
 
 def deleteAd(request, index):
     statusCode = 200 #401 403 404
     result = ""
     content_type = None
+    if "Authorization" in request.headers:
+        auth = methods.decode_token(request.headers["Authorization"])
+        if auth[0] == False:
+            return [result, content_type, 401]
+    else:
+        return [result, content_type, 400]
+    scope = auth[1]["scope"]
+    user_id = auth[1]["id"]
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT user_id FROM public.ad WHERE id = {}".format(index))
+        row = database.dictfetchall(cursor)
+        if "user_admin" not in scope:
+            if user_id != row[0]["user_id"]:
+                cursor.close()
+                return [result, content_type, 403]
+        row[0]["user_id"]
+        cursor.execute("SELECT COUNT(*) as count FROM public.ad WHERE id = {}".format(index))
+        rowCount = database.dictfetchall(cursor)
+        if rowCount[0]["count"] != 1:
+            cursor.close()
+            return [result, content_type, 404]
+        cursor.execute("UPDATE public.ad SET is_deleted = 1 WHERE id = {}".format(index))
     return [result, content_type, statusCode]
+
+def checkCreateAd(body):
+    if "name" not in body or "text" not in body or "category" not in body or "price" not in body:
+        return False
+    if len(body["name"]) > 20 or len(body["name"]) < 6 or not methods.is_word(body["name"], [' ']):
+        return False
+    if len(body["text"]) > 5000 or len(body["text"]) < 6:
+        return False
+    if isinstance(body["category"], int) == False:
+        return False
+    if isinstance(body["price"], float) == False and isinstance(body["price"], int) == False:
+        if body["price"] < 0:
+            return False
+    return True

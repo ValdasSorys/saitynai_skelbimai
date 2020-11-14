@@ -23,7 +23,12 @@ SECRET_KEY = 'kw%7m&_7!fm$!edn9)%_8*(r@6sv(2)d2a9%$%ar!#ha^%f5!u'
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
+
 SECRET = 'LJkonq0eUXAttEbq8qagS3vZkJGm48dUP3NKv59cCQCWuAsu5R6fokJvsENgKFD'
+
+EMAIL_CHARS = ['@', '.']
+TEXT_CHARS = [',', '@', '.', '-', '(', ')']
+
 
 # Application definition
 

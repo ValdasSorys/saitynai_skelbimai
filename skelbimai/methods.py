@@ -15,7 +15,7 @@ def loadJson(jsonData):
 
 def dumpJson(data):
     return json.dumps(data, ensure_ascii=False).encode('utf8')
-    
+
 def currentTime():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -84,3 +84,7 @@ def get_body(bodyData):
         return [False, body]
     else:
         return [True, body]
+
+def is_word(var, additional_chars):
+    filter_char = lambda char: char.isalnum() or char in additional_chars
+    return "".join(filter(filter_char, var)) == var
