@@ -52,7 +52,8 @@ def userAPI4(request):
     #    resultDetails = getToken(request)
     #else:
     return HttpResponse(status = 404)
-    return HttpResponse(resultDetails[0], content_type = resultDetails[1], status = resultDetails[2])
+    #return HttpResponse(resultDetails[0], content_type = resultDetails[1], status = resultDetails[2])
+    #asddasdasd
 
     
 def getUserList(request):
