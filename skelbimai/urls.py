@@ -13,5 +13,5 @@ urlpatterns = [
     path('users/', userApi.userAPI1, name = "userAPI1"),
     path('users/<int:index>/', userApi.userAPI2, name = "userAPI2"),
     path('users/login', userApi.userAPI3, name = "userAPI3"),
-    path('users/getToken', userApi.userApi4, name = "userApi4"),
+    path('users/getToken', userApi.userAPI4, name = "userApi4"),
 ]

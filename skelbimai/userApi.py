@@ -46,6 +46,14 @@ def userAPI3(request):
         return HttpResponse(status = 404)
     return HttpResponse(resultDetails[0], content_type = resultDetails[1], status = resultDetails[2])
 
+@csrf_exempt
+def userAPI4(request):  
+    #if (request.method == 'POST'):
+    #    resultDetails = getToken(request)
+    #else:
+    return HttpResponse(status = 404)
+    return HttpResponse(resultDetails[0], content_type = resultDetails[1], status = resultDetails[2])
+
     
 def getUserList(request):
     statusCode = 200 #403
