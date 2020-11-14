@@ -1,8 +1,11 @@
 import simplejson as json
-from datetime import datetime
 import hashlib, binascii, os
 from random import choice
 from string import ascii_uppercase
+from django.conf import settings
+from datetime import datetime, timedelta
+from django.http import QueryDict
+import jwt
 def loadJson(jsonData):
     try:
         toReturn = json.loads(jsonData)
@@ -10,6 +13,9 @@ def loadJson(jsonData):
         return None
     return toReturn
 
+def dumpJson(data):
+    return json.dumps(data, ensure_ascii=False).encode('utf8')
+    
 def currentTime():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -36,3 +42,45 @@ def verify_password(stored_password, provided_password):
 def generate_client_id():
     return ''.join(choice(ascii_uppercase) for i in range(20))
 
+def getRedirect_uri():
+    return "https://skelbimai.azurewebsites.net/"
+
+def get_admin_scopes():
+    return ["ads", "categories", "comments", "user_admin"]
+
+def get_user_scopes():
+    return ["ads", "categories", "comments"]
+
+def decode_token(auth):
+    success = True
+    result = ""
+    token = auth.split()
+    if len(token) == 2:
+        if token[0] == "Bearer":
+            try:
+                result = jwt.decode(token[1], settings.SECRET, algorithms='HS256')
+            except jwt.exceptions.DecodeError:
+                success = False
+                result = "wrong_input"
+            except jwt.ExpiredSignatureError:
+                success = False
+                result = "expired"
+    else:
+        success = False
+        result = "wrong_input"
+    return [success, result]
+
+def datetime_str(date):
+    return date.strftime("%m/%d/%Y %H:%M:%S")
+
+def get_body(bodyData):
+    bodyData = QueryDict(bodyData)
+    if len(bodyData) == 0:
+        return [False, "empty"]
+    for x in bodyData:
+        body = x
+    body = loadJson(body)
+    if body == None or not isinstance(body,dict):
+        return [False, body]
+    else:
+        return [True, body]

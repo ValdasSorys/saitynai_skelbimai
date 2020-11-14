@@ -3,7 +3,7 @@ from django.db import connection
 from django.conf import settings
 import jwt
 import simplejson as json
-from skelbimai import database
+from skelbimai import database, methods
 
 
 # Create your views here.
@@ -50,35 +50,41 @@ def adAPI3(request, index):
     else:
         return HttpResponse(status = 404)
     return HttpResponse(resultDetails[0], content_type = resultDetails[1], status = resultDetails[2])
-'''    
+
 def getAdList(request):
     statusCode = 200
     result = Path('skelbimai/jsonmock/adList.json').read_text(encoding = 'utf-8')
     content_type = "application/json"
-    key = 'secret'
-    encoded = jwt.encode({'some': 'payload'}, key, algorithm='HS256')
-    decoded = jwt.decode(encoded, key, algorithms='HS256')
-    result+="\n"
-    result+=str(decoded)
+
+    body = methods.get_body(request.body)
+    if body[0] == False and body[1] != "empty":
+        return [result, content_type, 400]
+    body_empty = body[0]
+    body = body[1]
+
+    page = 0
+    limit = 0
+    offset = 0
+    if "page" in body and "limit" in body:
+        if isinstance(body["page"], int) and isinstance(body["limit"], int):
+            page = body["page"]
+            limit = body["limit"]
+            offset = (limit*page) - limit
+
     with connection.cursor() as cursor:
-        cursor.execute("UPDATE public.user SET is_deleted = is_deleted+1 WHERE id = 1")
-        cursor.execute("SELECT * FROM public.user ORDER BY id ASC")
+        sql = "SELECT * FROM public.ad WHERE is_deleted = 0 ORDER BY id ASC"
+        if page > 0 and limit > 0:
+            sql += " LIMIT {} OFFSET {}".format(limit, offset)
+        cursor.execute(sql)
         row = database.dictfetchall(cursor)
+
+        sql = "SELECT COUNT(*) as count FROM public.ad WHERE is_deleted = 0"
+        cursor.execute(sql)
+        rowCount = database.dictfetchall(cursor)
+
     for x in row:
-        x["usersince_date"] = x["usersince_date"].strftime("%m/%d/%Y, %H:%M:%S")
-    result = json.dumps(row, ensure_ascii=False).encode('utf8')
-    return [result, content_type, statusCode]
-'''
-def getAdList(request):
-    statusCode = 200
-    result = Path('skelbimai/jsonmock/adList.json').read_text(encoding = 'utf-8')
-    content_type = "application/json"
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT * FROM public.ad ORDER BY id ASC")
-        row = database.dictfetchall(cursor)
-    for x in row:
-        x["date"] = x["date"].strftime("%m/%d/%Y %H:%M:%S")
-    result = json.dumps(row, ensure_ascii=False).encode('utf8')
+        x["date"] = methods.datetime_str(x["date"])
+    result = methods.dumpJson({"totalCount": rowCount[0]["count"],"ads": row})
     return [result, content_type, statusCode]
 
 def getAdByCategoryList(request, index):
