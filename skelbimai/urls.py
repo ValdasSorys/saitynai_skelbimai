@@ -12,4 +12,6 @@ urlpatterns = [
     path('ads/<int:index1>/comments/<int:index2>/', commentApi.commentAPI2, name = "commentAPI2"),
     path('users/', userApi.userAPI1, name = "userAPI1"),
     path('users/<int:index>/', userApi.userAPI2, name = "userAPI2"),
+    path('users/login', userApi.userAPI3, name = "userAPI3"),
+    path('users/getToken', userApi.userApi4, name = "userApi4"),
 ]

@@ -1,5 +1,10 @@
 from django.shortcuts import render
+from django.db import connection
+from django.conf import settings
 import jwt
+import simplejson as json
+from skelbimai import database
+
 
 # Create your views here.
 from django.http import HttpResponse
@@ -45,7 +50,7 @@ def adAPI3(request, index):
     else:
         return HttpResponse(status = 404)
     return HttpResponse(resultDetails[0], content_type = resultDetails[1], status = resultDetails[2])
-    
+'''    
 def getAdList(request):
     statusCode = 200
     result = Path('skelbimai/jsonmock/adList.json').read_text(encoding = 'utf-8')
@@ -55,6 +60,25 @@ def getAdList(request):
     decoded = jwt.decode(encoded, key, algorithms='HS256')
     result+="\n"
     result+=str(decoded)
+    with connection.cursor() as cursor:
+        cursor.execute("UPDATE public.user SET is_deleted = is_deleted+1 WHERE id = 1")
+        cursor.execute("SELECT * FROM public.user ORDER BY id ASC")
+        row = database.dictfetchall(cursor)
+    for x in row:
+        x["usersince_date"] = x["usersince_date"].strftime("%m/%d/%Y, %H:%M:%S")
+    result = json.dumps(row, ensure_ascii=False).encode('utf8')
+    return [result, content_type, statusCode]
+'''
+def getAdList(request):
+    statusCode = 200
+    result = Path('skelbimai/jsonmock/adList.json').read_text(encoding = 'utf-8')
+    content_type = "application/json"
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT * FROM public.ad ORDER BY id ASC")
+        row = database.dictfetchall(cursor)
+    for x in row:
+        x["date"] = x["date"].strftime("%m/%d/%Y %H:%M:%S")
+    result = json.dumps(row, ensure_ascii=False).encode('utf8')
     return [result, content_type, statusCode]
 
 def getAdByCategoryList(request, index):

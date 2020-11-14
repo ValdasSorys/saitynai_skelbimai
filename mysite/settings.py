@@ -23,7 +23,7 @@ SECRET_KEY = 'kw%7m&_7!fm$!edn9)%_8*(r@6sv(2)d2a9%$%ar!#ha^%f5!u'
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
-
+SECRET = 'LJkonq0eUXAttEbq8qagS3vZkJGm48dUP3NKv59cCQCWuAsu5R6fokJvsENgKFD'
 
 # Application definition
 
@@ -73,8 +73,12 @@ WSGI_APPLICATION = 'mysite.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': 'skelbimai',
+        'USER': 'root1@skelbimai',
+        'PASSWORD': 'Password1',
+        'HOST': 'skelbimai.postgres.database.azure.com',
+        'PORT': '5432',
     }
 }
 
