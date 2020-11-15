@@ -4,9 +4,6 @@ from django.conf import settings
 import jwt
 import simplejson as json
 from skelbimai import database, methods
-
-
-# Create your views here.
 from django.http import HttpResponse
 from django.core import serializers
 from pathlib import Path
@@ -53,8 +50,8 @@ def adAPI3(request, index):
 
 def getAdList(request):
     statusCode = 200
-    result = Path('skelbimai/jsonmock/adList.json').read_text(encoding = 'utf-8')
-    content_type = "application/json"
+    result = ""
+    content_type = ""
 
     body = methods.get_body(request.body)
     if body[0] == False and body[1] != "empty":
@@ -70,9 +67,53 @@ def getAdList(request):
             page = body["page"]
             limit = body["limit"]
             offset = (limit*page) - limit
+        else:
+            return [result, content_type, 400]
+
+    should_sort = False
+    if "sortby" in body and "sortorder" in body:
+        if body["sortby"] in ["date", "price"] and body["sortorder"] in ["ASC", "DESC"]:
+            should_sort = True
+        else:
+            return [result, content_type, 400]
+    
+    filterby_minimumprice = False
+    if "minimumprice" in body:
+        if isinstance(body["minimumprice"], int) or isinstance(body["minimumprice"], float):
+            filterby_minimumprice = True
+        else:
+            return [result, content_type, 400]
+    
+    filterby_maximumprice = False
+    if "maximumprice" in body:
+        if isinstance(body["maximumprice"], int) or isinstance(body["maximumprice"], float):
+            filterby_maximumprice = True
+        else:
+            return [result, content_type, 400]
+    
+    filterby_category = False
+    if "category" in body:
+        if isinstance(body["category"], int):
+            filterby_category = True
+        else:
+            return [result, content_type, 400]
+
+    sql_where = ""
+    if filterby_minimumprice:
+        sql_where += "AND price >= {}".format(body["minimumprice"])
+    if filterby_maximumprice:
+        sql_where += "AND price <= {}".format(body["maximumprice"])
+    if filterby_category:
+        sql_where += "AND category = {}".format(body["category"])
+
+    sql_orderby = "id ASC"
+    if should_sort:
+        sql_orderby = "{} {}".format(body["sortby"], body["sortorder"])
+
 
     with connection.cursor() as cursor:
-        sql = "SELECT * FROM public.ad WHERE is_deleted = 0 ORDER BY id ASC"
+        sql = "SELECT * FROM public.ad WHERE is_deleted = 0 " + sql_where + " ORDER BY " + sql_orderby
+        print(sql)
         if page > 0 and limit > 0:
             sql += " LIMIT {} OFFSET {}".format(limit, offset)
         cursor.execute(sql)
@@ -84,6 +125,7 @@ def getAdList(request):
     for x in row:
         x["date"] = methods.datetime_str(x["date"])
     result = methods.dumpJson({"totalCount": rowCount[0]["count"],"ads": row})
+    content_type = "application/json"
     return [result, content_type, statusCode]
 
 def getAdByCategoryList(request, index):
@@ -104,6 +146,8 @@ def createAd(request):
         return [result, content_type, 400]
     scope = auth[1]["scope"]
     user_id = auth[1]["id"]
+    if "ads" not in scope:
+        return [result, content_type, 403]
     #body data
     body = methods.get_body(request.body)
     if body[0] == False:
@@ -137,11 +181,14 @@ def updateAd(request, index):
         if auth[0] == False:
             return [result, content_type, 401]
     else:
-        return [result, content_type, 400]
+        return [result, content_type, 401]
 
     scope = auth[1]["scope"]
     user_id = auth[1]["id"]
 
+    if "ads" not in scope:
+        return [result, content_type, 403]
+        
     body = methods.get_body(request.body)
     if body[0] == False:
         return [result, content_type, 400]
@@ -157,12 +204,12 @@ def updateAd(request, index):
     sql = "UPDATE public.ad SET "
     sql_params = []
     if "name" in body:
-        if len(body["name"]) > 20  or len(body["name"]) < 6 or not methods.is_word(body["name"], [' ']):
+        if not methods.is_word(body["name"], settings.TEXT_CHARS) or len(body["name"]) > 20  or len(body["name"]) < 6 or not methods.is_word(body["name"], [' ']):
             return [result, content_type, 400]
         sql += "name = %s, "
         sql_params.append(body["name"])
     if "text" in body:
-        if len(body["text"]) > 5000  or len(body["text"]) < 6:
+        if not methods.is_word(body["name"], settings.TEXT_CHARS) or len(body["text"]) > 5000  or len(body["text"]) < 6:
             return [result, content_type, 400]
         sql += "text = %s, "
         sql_params.append(body["text"])
@@ -186,7 +233,7 @@ def updateAd(request, index):
         if len(rowCount) != 1:
             cursor.close()
             return [result, content_type, 404]
-        if "user_admin" not in scope:
+        if "ads_admin" not in scope:
             if rowCount[0]["user_id"] != user_id:
                 cursor.close()
                 return [result, content_type, 403]
@@ -200,9 +247,9 @@ def updateAd(request, index):
         cursor.execute(sql, sql_params)
         cursor.execute("SELECT * FROM public.ad WHERE id = {}".format(index))
         row = database.dictfetchall(cursor)
-        row[0]["date"] = methods.datetime_str(row[0]["date"])
-        content_type = "application/json"
-        result = methods.dumpJson(row[0])
+    row[0]["date"] = methods.datetime_str(row[0]["date"])
+    content_type = "application/json"
+    result = methods.dumpJson(row[0])
     return [result, content_type, statusCode]
 
 def getAd(request, index):
@@ -230,14 +277,14 @@ def deleteAd(request, index):
         if auth[0] == False:
             return [result, content_type, 401]
     else:
-        return [result, content_type, 400]
+        return [result, content_type, 401]
     scope = auth[1]["scope"]
     user_id = auth[1]["id"]
     with connection.cursor() as cursor:
         cursor.execute("SELECT user_id FROM public.ad WHERE id = {}".format(index))
         row = database.dictfetchall(cursor)
-        if "user_admin" not in scope:
-            if user_id != row[0]["user_id"]:
+        if "ads_admin" not in scope:
+            if user_id != row[0]["user_id"] and "ads" not in scope:
                 cursor.close()
                 return [result, content_type, 403]
         row[0]["user_id"]
@@ -252,9 +299,9 @@ def deleteAd(request, index):
 def checkCreateAd(body):
     if "name" not in body or "text" not in body or "category" not in body or "price" not in body:
         return False
-    if len(body["name"]) > 20 or len(body["name"]) < 6 or not methods.is_word(body["name"], [' ']):
+    if not methods.is_word(body["name"], settings.TEXT_CHARS) or len(body["name"]) > 20 or len(body["name"]) < 6:
         return False
-    if len(body["text"]) > 5000 or len(body["text"]) < 6:
+    if not methods.is_word(body["text"], settings.TEXT_CHARS) or len(body["text"]) > 5000 or len(body["text"]) < 6:
         return False
     if isinstance(body["category"], int) == False:
         return False

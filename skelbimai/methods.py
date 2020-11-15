@@ -40,16 +40,16 @@ def verify_password(stored_password, provided_password):
     return pwdhash == stored_password
 
 def generate_client_id():
-    return ''.join(choice(ascii_uppercase) for i in range(20))
+    return ''.join(choice(ascii_uppercase) for i in range(64))
 
 def getRedirect_uri():
     return "https://skelbimai.azurewebsites.net/"
 
 def get_admin_scopes():
-    return ["ads", "categories", "comments", "user_admin"]
+    return ["ads", "comments", "categories_admin", "user_admin", "comments_admin", "ads_admin"]
 
 def get_user_scopes():
-    return ["ads", "categories", "comments"]
+    return ["ads", "comments"]
 
 def decode_token(auth):
     success = True
@@ -80,11 +80,22 @@ def get_body(bodyData):
     for x in bodyData:
         body = x
     body = loadJson(body)
+    if body == "empty":
+        return [False, ""]
     if body == None or not isinstance(body,dict):
         return [False, body]
     else:
         return [True, body]
 
 def is_word(var, additional_chars):
+    if isinstance(var, str) == False:
+        return False
     filter_char = lambda char: char.isalnum() or char in additional_chars
     return "".join(filter(filter_char, var)) == var
+
+def is_email(var):
+    must_have_character = ['.', '@']
+    for char in must_have_character:
+        if char not in var:
+            return False
+    return True

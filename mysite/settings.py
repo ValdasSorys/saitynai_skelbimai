@@ -27,7 +27,7 @@ ALLOWED_HOSTS = ['*']
 SECRET = 'LJkonq0eUXAttEbq8qagS3vZkJGm48dUP3NKv59cCQCWuAsu5R6fokJvsENgKFD'
 
 EMAIL_CHARS = ['@', '.']
-TEXT_CHARS = [',', '@', '.', '-', '(', ')']
+TEXT_CHARS = [',', '@', '.', '-', '(', ')', ' ', '?', '!']
 
 
 # Application definition

@@ -1,13 +1,13 @@
 from django.shortcuts import render
-from django.http import HttpResponse
-from pathlib import Path
-from django.views.decorators.csrf import csrf_exempt
-from django.http import QueryDict
-import simplejson as json
-import jwt
-from skelbimai import database, methods
 from django.db import connection
 from django.conf import settings
+import jwt
+import simplejson as json
+from skelbimai import database, methods
+from django.http import HttpResponse
+from django.core import serializers
+from pathlib import Path
+from django.views.decorators.csrf import csrf_exempt
 from datetime import datetime, timedelta
 
 #users/
@@ -64,7 +64,7 @@ def getUserList(request):
         if auth[0] == False:
             return [result, content_type, 401]
     else:
-        return [result, content_type, 400]
+        return [result, content_type, 401]
     scope = auth[1]["scope"].split()
 
     body = methods.get_body(request.body)
@@ -163,14 +163,17 @@ def getToken(request):
     content_type = None
     statusCode = 200 #401
     if "client-id" in request.headers and "redirect-uri" in request.headers and "scope" in request.headers:
-        client_id = request.headers["client-id"]
-        redirect_uri = request.headers["redirect-uri"]
-        scope = request.headers["scope"].split("+")
+        if isinstance(request.headers["client-id"], str) and isinstance(request.headers["redirect-uri"], str) and isinstance(request.headers["scope"], str):
+            client_id = request.headers["client-id"]
+            redirect_uri = request.headers["redirect-uri"]
+            scope = request.headers["scope"].split("+")
+        else:
+            return [result, content_type, 400]
     else: 
         return [result, content_type, 400]
 
     if redirect_uri != methods.getRedirect_uri():
-        return [result, content_type, 400]
+        return [result, content_type, 401]
 
     with connection.cursor() as cursor:
         cursor.execute("SELECT id, role, client_id FROM public.user WHERE client_id = %s", [client_id])
@@ -191,7 +194,7 @@ def getToken(request):
 
     for s in scope:
         if s not in eglibible_scopes:
-            return [result, content_type, 401]
+            return [result, content_type, 403]
 
     content_type = "application/json"
     token = jwt.encode({'exp': datetime.utcnow() + timedelta(hours=24), 'id': user_id, 'scope': " ".join(scope)}, settings.SECRET, algorithm='HS256')
@@ -210,7 +213,7 @@ def updateUser(request, index):
         if auth[0] == False:
             return [result, content_type, 401]
     else:
-        return [result, content_type, 400]
+        return [result, content_type, 401]
     scope = auth[1]["scope"]
     user_id = auth[1]["id"]
     
@@ -227,17 +230,17 @@ def updateUser(request, index):
     sql = "UPDATE public.user SET "
     sql_params = []
     if "name" in body:
-        if len(body["name"]) > 20  or len(body["name"]) < 6 or not methods.is_word(body["name"], []):
+        if not methods.is_word(body["name"], []) or len(body["name"]) > 20  or len(body["name"]) < 6:
             return [result, content_type, 400]
         sql += "name = %s, "
         sql_params.append(body["name"])
     if "phone" in body:
-        if len(body["phone"]) > 20  or len(body["phone"]) < 6 or not methods.is_word(body["phone"], []):
+        if not methods.is_word(body["phone"], []) or len(body["phone"]) > 20  or len(body["phone"]) < 6:
             return [result, content_type, 400]
         sql += "phone = %s, "
         sql_params.append(body["phone"])
     if "email" in body:
-        if len(body["email"]) > 50  or len(body["email"]) < 6 or not methods.is_word(body["email"], settings.EMAIL_CHARS):
+        if not methods.is_word(body["email"], settings.EMAIL_CHARS) or not methods.is_email(body["email"]) or len(body["email"]) > 50  or len(body["email"]) < 6:
             return [result, content_type, 400]
         sql += "email = %s, "
         sql_params.append(body["email"])
@@ -263,7 +266,7 @@ def deleteUser(request, index):
         if auth[0] == False:
             return [result, content_type, 401]
     else:
-        return [result, content_type, 400]
+        return [result, content_type, 401]
     scope = auth[1]["scope"].split()
     if "user_admin" not in scope:
         return [result, content_type, 403]
@@ -299,15 +302,15 @@ def checkCreateUser(body):
     for collumn in required_collumns:
         if collumn not in body:
             return False
-    if len(body["name"]) > 20 or len(body["name"]) < 2 or not methods.is_word(body["name"], []):
+    if not methods.is_word(body["name"], []) or len(body["name"]) > 20 or len(body["name"]) < 2:
         return False
-    if len(body["username"]) > 20 or len(body["username"]) < 6 or not methods.is_word(body["username"], []):
+    if not methods.is_word(body["username"], []) or len(body["username"]) > 20 or len(body["username"]) < 6:
         return False
-    if len(body["password"]) > 50 or len(body["password"]) < 6 or not methods.is_word(body["password"], []):
+    if not methods.is_word(body["password"], settings.TEXT_CHARS) or len(body["password"]) > 50 or len(body["password"]) < 6:
         return False
-    if len(body["phone"]) > 20 or len(body["phone"]) < 6 or not methods.is_word(body["phone"], []):
+    if not methods.is_word(body["phone"], []) or len(body["phone"]) > 20 or len(body["phone"]) < 6 :
         return False
-    if len(body["email"]) > 50 or len(body["phone"]) < 6 or not methods.is_word(body["email"], settings.EMAIL_CHARS):
+    if not methods.is_word(body["email"], settings.EMAIL_CHARS) or not methods.is_email(body["email"])  or len(body["email"]) > 50 or len(body["phone"]) < 6:
         return False    
     return True
     
