@@ -8,6 +8,7 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -17,7 +18,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/3.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'kw%7m&_7!fm$!edn9)%_8*(r@6sv(2)d2a9%$%ar!#ha^%f5!u'
+#SECRET_KEY = 'kw%7m&_7!fm$!edn9)%_8*(r@6sv(2)d2a9%$%ar!#ha^%f5!u'
+SECRET_KEY = os.environ['secret_token']
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -81,11 +83,12 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
         'NAME': 'skelbimai',
         'USER': 'root1@skelbimai',
-        'PASSWORD': 'Password1',
+        'PASSWORD': os.environ['database_password'],
         'HOST': 'skelbimai.postgres.database.azure.com',
         'PORT': '5432',
     }
 }
+#password: Password1
 
 
 # Password validation
