@@ -287,7 +287,6 @@ def deleteAd(request, index):
             if user_id != row[0]["user_id"] and "ads" not in scope:
                 cursor.close()
                 return [result, content_type, 403]
-        row[0]["user_id"]
         cursor.execute("SELECT COUNT(*) as count FROM public.ad WHERE id = {}".format(index))
         rowCount = database.dictfetchall(cursor)
         if rowCount[0]["count"] != 1:

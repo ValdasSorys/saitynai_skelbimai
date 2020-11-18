@@ -18,16 +18,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/3.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-#SECRET_KEY = 'kw%7m&_7!fm$!edn9)%_8*(r@6sv(2)d2a9%$%ar!#ha^%f5!u'
-SECRET_KEY = os.environ['secret_token']
+SECRET_KEY = 'kw%7m&_7!fm$!edn9)%_8*(r@6sv(2)d2a9%$%ar!#ha^%f5!u'
+#SECRET_KEY = os.environ['secret_token']
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
-SECRET = 'LJkonq0eUXAttEbq8qagS3vZkJGm48dUP3NKv59cCQCWuAsu5R6fokJvsENgKFD'
-
+#SECRET = 'LJkonq0eUXAttEbq8qagS3vZkJGm48dUP3NKv59cCQCWuAsu5R6fokJvsENgKFD'
+SECRET = os.environ['secret_token']
 EMAIL_CHARS = ['@', '.']
 TEXT_CHARS = [',', '@', '.', '-', '(', ')', ' ', '?', '!']
 

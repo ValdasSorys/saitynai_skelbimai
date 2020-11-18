@@ -65,7 +65,7 @@ def getUserList(request):
             return [result, content_type, 401]
     else:
         return [result, content_type, 401]
-    scope = auth[1]["scope"].split()
+    scope = auth[1]["scope"]
 
     body = methods.get_body(request.body)
     if body[0] == False and body[1] != "empty":
@@ -267,11 +267,11 @@ def deleteUser(request, index):
             return [result, content_type, 401]
     else:
         return [result, content_type, 401]
-    scope = auth[1]["scope"].split()
+    scope = auth[1]["scope"]
     if "user_admin" not in scope:
         return [result, content_type, 403]
     with connection.cursor() as cursor:
-        cursor.execute("SELECT COUNT(*) as count FROM public.user WHERE id = {}".format(index))
+        cursor.execute("SELECT COUNT(*) as count FROM public.user WHERE id = {} AND is_deleted = 0".format(index))
         rowCount = database.dictfetchall(cursor)
         if rowCount[0]["count"] != 1:
             cursor.close()

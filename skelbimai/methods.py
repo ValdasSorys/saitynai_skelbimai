@@ -59,6 +59,7 @@ def decode_token(auth):
         if token[0] == "Bearer":
             try:
                 result = jwt.decode(token[1], settings.SECRET, algorithms='HS256')
+                result["scope"] = result["scope"].split()
             except jwt.exceptions.DecodeError:
                 success = False
                 result = "wrong_input"
