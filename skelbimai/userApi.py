@@ -173,7 +173,7 @@ def getToken(request):
         return [result, content_type, 401]
 
     with connection.cursor() as cursor:
-        cursor.execute("SELECT id, role, client_id FROM public.user WHERE client_id = %s", [client_id])
+        cursor.execute("SELECT id, role, client_id FROM public.user WHERE client_id = %s AND is_deleted = 0", [client_id])
         row = database.dictfetchall(cursor)
         if len(row) == 1:
             if row[0]["client_id"] != client_id:
@@ -192,8 +192,8 @@ def getToken(request):
             return [result, content_type, 403]
 
     content_type = "application/json"
-    token = jwt.encode({'exp': datetime.utcnow() + timedelta(hours=24), 'id': user_id, 'scope': " ".join(scope)}, settings.SECRET, algorithm='HS256')
-    result = json.dumps({'access_token': token, 'token_type': "bearer", 'expires_in': 86400})
+    token = jwt.encode({'exp': datetime.utcnow() + timedelta(minutes=5), 'id': user_id, 'scope': " ".join(scope)}, settings.SECRET, algorithm='HS256')
+    result = json.dumps({'access_token': token, 'token_type': "bearer", 'expires_in': 300})
     return [result, content_type, statusCode]
 
 
@@ -246,7 +246,7 @@ def updateUser(request, index):
         cursor = connection.cursor()
         try:
             cursor.execute(sql, sql_params)
-            cursor.execute("SELECT id, username, name, phone, email, usersince_date, role FROM public.user WHERE id = {}".format(index))
+            cursor.execute("SELECT id, username, name, phone, email, usersince_date, role FROM public.user WHERE id = {} AND is_deleted = 0".format(index))
             row = database.dictfetchall(cursor)
         finally:
             cursor.close()
