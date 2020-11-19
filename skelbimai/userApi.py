@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from django.db import connection, transaction
+from django.db import connection, transaction, IntegrityError
 from django.conf import settings
 import jwt
 import simplejson as json
@@ -84,8 +84,7 @@ def getUserList(request):
             offset = (limit*page) - limit
     
     with transaction.atomic():
-        cursor = connection.cursor()
-        try:
+        with connection.cursor() as cursor:
             sql = "SELECT id, username, name, phone, email, usersince_date, role, is_deleted FROM public.user ORDER BY id"
             if page > 0 and limit > 0:
                 sql += " LIMIT {} OFFSET {}".format(limit, offset)
@@ -97,8 +96,6 @@ def getUserList(request):
             sql = "SELECT COUNT(*) as count FROM public.user"
             cursor.execute(sql)
             rowCount = database.dictfetchall(cursor)
-        finally:
-            cursor.close()
 
     for user in row:
         user["usersince_date"] = methods.datetime_str(user["usersince_date"])
@@ -120,17 +117,12 @@ def createUser(request):
     if not checkCreateUser(body):
         return [result, content_type, 400]
     with transaction.atomic():
-        cursor = connection.cursor()
-        try:
-            cursor.execute("SELECT COUNT(*) as count FROM public.user WHERE username = %s", [body["username"]])
-            row = database.dictfetchall(cursor)
-            if row[0]["count"] != 0:
-                statusCode = 409
-            else:
+        with connection.cursor() as cursor:
+            try:
                 cursor.execute("INSERT INTO public.user (username, name, phone, email, usersince_date, role, is_deleted, client_id, password) VALUES (%s, %s, %s, %s, %s, %s, 0, %s, %s);",
                     [body["username"], body["name"], body["phone"], body["email"], methods.currentTime(), "user", methods.generate_client_id(), methods.hash_password(body["password"])])
-        finally:
-            cursor.close()
+            except IntegrityError:
+                return [result, content_type, 409]
     return [result, content_type, statusCode]
 
 def getClientId(request):
@@ -277,18 +269,11 @@ def deleteUser(request, index):
     scope = auth[1]["scope"]
     if "user_admin" not in scope:
         return [result, content_type, 403]
-    with transaction.atomic():
-        cursor = connection.cursor()
-        try:
-            cursor.execute("SELECT COUNT(*) as count FROM public.user WHERE id = {} AND is_deleted = 0".format(index))
-            rowCount = database.dictfetchall(cursor)
-            if rowCount[0]["count"] != 1:
-                cursor.close()
-                return [result, content_type, 404]
-            cursor.execute("UPDATE public.user SET is_deleted = 1 WHERE id = {}".format(index))
-            cursor.execute("UPDATE public.ad SET is_deleted = 1 WHERE user_id = {}".format(index))
-        finally:
-            cursor.close()
+    with connection.cursor() as cursor:
+        cursor.execute("UPDATE public.user SET is_deleted = 1 WHERE id = {} AND is_deleted = 0".format(index))
+        if cursor.rowcount == 0:
+            return [result, content_type, 404]
+        cursor.execute("UPDATE public.ad SET is_deleted = 1 WHERE user_id = {}".format(index))
         
     return [result, content_type, statusCode]
     

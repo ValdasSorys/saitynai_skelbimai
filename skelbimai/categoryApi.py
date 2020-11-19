@@ -75,18 +75,12 @@ def createCategory(request):
         return [result, content_type, 400]
     if methods.is_word(body["name"], settings.TEXT_CHARS) == False:
         return [result, content_type, 400]
-    with transaction.atomic():
-        cursor = connection.cursor()
+    with connection.cursor() as cursor:
         try:
-            cursor.execute("SELECT Count(*) as count FROM public.category WHERE name = %s", [body["name"]])
-            rowCount = database.dictfetchall(cursor)
-            if rowCount[0]["count"] > 0:
-                cursor.close()
-                return [result, content_type, 409]
-            cursor.execute("INSERT INTO public.category (name) VALUES (%s) RETURNING id", [body["name"]])
-            category_id = database.dictfetchall(cursor)
-        finally:
-            cursor.close()
+            cursor.execute("INSERT INTO public.category (name) VALUES(%s) RETURNING id", [body["name"]])
+        except:
+            return [result, content_type, 409]
+        category_id = database.dictfetchall(cursor)
     result = methods.dumpJson({"id": category_id[0]["id"], "name": body["name"]})
     content_type = "application/json"
     return [result, content_type, statusCode]
@@ -117,19 +111,13 @@ def updateCategory(request, index):
     if not methods.is_word(body["name"], settings.TEXT_CHARS) or len(body["name"]) > 20 or len(body["name"]) < 6:
         return [result, content_type, 400]
     
-    with transaction.atomic():
-        cursor = connection.cursor()
-        try:
-            cursor.execute("SELECT Count(*) as count FROM public.category WHERE id = {}".format(index))
-            rowCount = database.dictfetchall(cursor)
-            if rowCount[0]["count"] != 1:
-                return [result, content_type, 404]
-            cursor.execute("UPDATE public.category SET name = %s WHERE id = %s", [body["name"], index])
-        finally:
-            cursor.close()
+    with connection.cursor() as cursor:
+        cursor.execute("UPDATE public.category SET name = %s WHERE id = %s", [body["name"], index])
+        if cursor.rowcount == 0:
+            return [result, content_type, 404]
+
     result = methods.dumpJson({"id": index, "name": body["name"]})
-    content_type = "application_json"    
-    
+    content_type = "application_json"        
     return [result, content_type, statusCode]
 
 def getCategory(request, index):
@@ -159,18 +147,8 @@ def deleteCategory(request, index):
     scope = auth[1]["scope"]
     if "categories_admin" not in scope:
         return [result, content_type, 403]
-    with transaction.atomic():
-        cursor = connection.cursor()
-        try:
-            cursor.execute("SELECT Count(*) as count FROM public.ad WHERE category = {}".format(index))
-            rowCount = database.dictfetchall(cursor)
-            if rowCount[0]["count"] != 0:
-                return [result, content_type, 409]
-            cursor.execute("SELECT COUNT(*) as count FROM public.category WHERE id = {}".format(index))
-            rowCount = database.dictfetchall(cursor)
-            if rowCount[0]["count"] != 1:
-                return [result, content_type, 404]
-            cursor.execute("DELETE FROM public.category WHERE id = {}".format(index))
-        finally:
-            cursor.close()
+    with connection.cursor() as cursor:
+        cursor.execute("DELETE FROM public.category WHERE id = {}".format(index))
+        if cursor.rowcount == 0:
+            return [result, content_type, 404]
     return [result, content_type, statusCode]

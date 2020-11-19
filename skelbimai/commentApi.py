@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from django.db import connection, transaction
+from django.db import connection, transaction, IntegrityError
 from django.conf import settings
 import jwt
 import simplejson as json
@@ -8,6 +8,7 @@ from django.http import HttpResponse
 from django.core import serializers
 from pathlib import Path
 from django.views.decorators.csrf import csrf_exempt
+import psycopg2
 
 #ads/<int:index>/comments/
 #GET - gauti visų skelbimo komentarų sąrašą
@@ -61,8 +62,7 @@ def getCommentList(request, index):
             return [result, content_type, 400]
 
     with transaction.atomic():
-        cursor = connection.cursor()
-        try:
+        with connection.cursor() as cursor:
             sql =   "SELECT user_id, ad_id, date, text, comment_id, name "\
                     "FROM public.comment JOIN public.user ON public.comment.user_id = public.user.id "\
                     "WHERE public.comment.ad_id = %s ORDER BY comment_id ASC"
@@ -74,8 +74,6 @@ def getCommentList(request, index):
             rowCount = database.dictfetchall(cursor)
             if rowCount[0]["count"] == 0:
                 return [result, content_type, 404]
-        finally:
-            cursor.close()
     for r in row:
         r["date"] = methods.datetime_str(r["date"])
     result = methods.dumpJson({"totalCount": rowCount[0]["count"],"comments": row})
@@ -107,21 +105,27 @@ def createComment(request, index):
         return [result, content_type, 400]
     
     with transaction.atomic():
-        cursor = connection.cursor()
-        try:
-            cursor.execute("SELECT Count(*) as count FROM public.ad WHERE id = %s AND is_deleted = 0", [index])
-            rowCount = database.dictfetchall(cursor)
-            if rowCount[0]["count"] == 0:
-                return [result, content_type, 404]
-            cursor.execute("INSERT INTO public.comment (user_id, ad_id, date, text, comment_id) VALUES (%s, %s, %s, %s, "+
-            "(SELECT coalesce(max(comment_id),0) + 1  FROM public.comment WHERE ad_id= %s)) RETURNING comment_id", 
-            [user_id, index, methods.currentTime(), body["text"], index])
-
+        with connection.cursor() as cursor:
+            insert_success = False
+            for x in range(100):
+                try:
+                    cursor.execute("INSERT INTO public.comment (user_id, ad_id, date, text, comment_id) VALUES (%s, %s, %s, %s, "+
+                    "(SELECT coalesce(max(comment_id),0) + 1  FROM public.comment WHERE ad_id= %s)) RETURNING comment_id", 
+                    [user_id, index, methods.currentTime(), body["text"], index])
+                    insert_success = True
+                    break
+                except IntegrityError as e:
+                    print(e)
+                    if "Key (ad_id)" in str(e):
+                        return [result, content_type, 404]
+                    if "Key (ad_id, comment_id)" in str(e):
+                        continue
+                    break
+            if not insert_success:
+                return [result, content_type, 500]       
             row_comment_id = database.dictfetchall(cursor)
             cursor.execute("SELECT *, (SELECT name FROM public.user WHERE id = %s) as user_name FROM public.comment WHERE ad_id = %s AND comment_id = %s", [user_id, index, row_comment_id[0]["comment_id"]])
             row = database.dictfetchall(cursor)
-        finally:
-            cursor.close()
         
     row[0]["date"] = methods.datetime_str(row[0]["date"])
     result = methods.dumpJson(row[0])
@@ -157,8 +161,7 @@ def updateComment(request, index1, index2):
         return [result, content_type, 400]
 
     with transaction.atomic():
-        cursor = connection.cursor()
-        try:
+        with connection.cursor() as cursor:
             cursor.execute("SELECT is_deleted FROM public.ad WHERE id = %s", [ad_index])
             row = database.dictfetchall(cursor)
             if len(row) != 1 or row[0]["is_deleted"] == 1:
@@ -167,19 +170,18 @@ def updateComment(request, index1, index2):
             cursor.execute("SELECT user_id FROM public.comment WHERE ad_id = %s AND comment_id = %s", [ad_index, comment_index])
             row = database.dictfetchall(cursor)
             if len(row) != 1:
-                cursor.close()
                 return [result, content_type, 404]
             if "comments_admin" not in scope:
                 if "comments" not in scope or row[0]["user_id"] != user_id:
                     return [result, content_type, 403]
 
-            cursor.execute("UPDATE public.comment SET text = %s, date = %s", [body["text"], methods.currentTime()])
+            cursor.execute("UPDATE public.comment SET text = %s, date = %s WHERE ad_id = %s AND comment_id = %s", [body["text"], methods.currentTime(), ad_index, comment_index])
+            if cursor.rowcount == 0:
+                return [result, content_type, 404]
             cursor.execute( "SELECT user_id, ad_id, date, text, comment_id, name " +
                             "FROM public.comment JOIN public.user ON public.comment.user_id = public.user.id " +
                             "WHERE public.comment.ad_id = %s AND public.comment.comment_id = %s", [ad_index, comment_index])
             row = database.dictfetchall(cursor)
-        finally:
-            cursor.close()
 
     row[0]["date"] = methods.datetime_str(row[0]["date"])
     result = methods.dumpJson(row[0])
@@ -193,8 +195,7 @@ def getComment(request, index1, index2):
     ad_index = index1
     comment_index = index2
     with transaction.atomic():
-        cursor = connection.cursor()
-        try:
+        with connection.cursor() as cursor:
             cursor.execute("SELECT is_deleted FROM public.ad WHERE id = %s", [ad_index])
             row = database.dictfetchall(cursor)
             if len(row) == 0 or row[0]["is_deleted"] == 1:
@@ -207,8 +208,6 @@ def getComment(request, index1, index2):
                 return [result, content_type, 404]
             cursor.execute("SELECT name FROM public.user WHERE id = %s", [row[0]["user_id"]])
             row_user_name = database.dictfetchall(cursor) 
-        finally:
-            cursor.close()
     row[0]["date"] = methods.datetime_str(row[0]["date"])
     row[0]["user_name"] = row_user_name[0]["name"]
     result = methods.dumpJson(row[0])
@@ -235,24 +234,16 @@ def deleteComment(request, index1, index2):
     #    return [result, content_type, 403]
     
     with transaction.atomic():
-        cursor = connection.cursor()
-        try:
-            cursor.execute("SELECT is_deleted FROM public.ad WHERE id = %s", [ad_index])
-            row = database.dictfetchall(cursor)
-            if len(row) == 0 or row[0]["is_deleted"] == 1:
-                cursor.close()
-                return [result, content_type, 404]
+        with connection.cursor() as cursor:            
             cursor.execute("SELECT user_id FROM public.comment WHERE ad_id = %s AND comment_id = %s", [ad_index, comment_index])
             row = database.dictfetchall(cursor)
             if len(row) == 0:
-                cursor.close()
                 return [result, content_type, 404]
             if "comments_admin" not in scope:
                 if row[0]["user_id"] != user_id:
-                    cursor.close()
                     return [result, content_type, 403]
             cursor.execute("DELETE FROM public.comment WHERE ad_id = %s AND comment_id = %s", [ad_index, comment_index])
-        finally: 
-            cursor.close()
+            if cursor.rowcount == 0:
+                return [result, content_type, 404]
     return [result, content_type, statusCode]
         
