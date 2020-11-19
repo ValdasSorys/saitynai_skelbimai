@@ -76,8 +76,6 @@ def createCategory(request):
     if methods.is_word(body["name"], settings.TEXT_CHARS) == False:
         return [result, content_type, 400]
     with connection.cursor() as cursor:
-        if not database.check_user(cursor, user_id):
-                return ["banned", content_type, 403]
         try:
             cursor.execute("INSERT INTO public.category (name) VALUES(%s) RETURNING id", [body["name"]])
         except:
@@ -114,8 +112,6 @@ def updateCategory(request, index):
         return [result, content_type, 400]
     
     with connection.cursor() as cursor:
-        if not database.check_user(cursor, user_id):
-                return ["banned", content_type, 403]
         cursor.execute("UPDATE public.category SET name = %s WHERE id = %s", [body["name"], index])
         if cursor.rowcount == 0:
             return [result, content_type, 404]
@@ -152,8 +148,6 @@ def deleteCategory(request, index):
     if "categories_admin" not in scope:
         return [result, content_type, 403]
     with connection.cursor() as cursor:
-        if not database.check_user(cursor, user_id):
-                return ["banned", content_type, 403]
         cursor.execute("DELETE FROM public.category WHERE id = {}".format(index))
         if cursor.rowcount == 0:
             return [result, content_type, 404]
