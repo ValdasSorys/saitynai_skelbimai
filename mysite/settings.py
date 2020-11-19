@@ -26,8 +26,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
-#SECRET = 'LJkonq0eUXAttEbq8qagS3vZkJGm48dUP3NKv59cCQCWuAsu5R6fokJvsENgKFD'
-SECRET = os.environ['secret_token']
+SECRET = 'LJkonq0eUXAttEbq8qagS3vZkJGm48dUP3NKv59cCQCWuAsu5R6fokJvsENgKFD'
+#SECRET = os.environ['secret_token']
 EMAIL_CHARS = ['@', '.']
 TEXT_CHARS = [',', '@', '.', '-', '(', ')', ' ', '?', '!']
 
@@ -83,7 +83,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
         'NAME': 'skelbimai',
         'USER': 'root1@skelbimai',
-        'PASSWORD': os.environ['database_password'],
+        'PASSWORD': 'Password1',
         'HOST': 'skelbimai.postgres.database.azure.com',
         'PORT': '5432',
     }

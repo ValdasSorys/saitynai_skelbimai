@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from django.db import connection
+from django.db import connection, transaction
 from django.conf import settings
 import jwt
 import simplejson as json
@@ -8,16 +8,6 @@ from django.http import HttpResponse
 from django.core import serializers
 from pathlib import Path
 from django.views.decorators.csrf import csrf_exempt
-
-#categories/<int:index>/ads
-#GET - gauti tam tikros kategorijos skelbimų sąrašą
-@csrf_exempt
-def adAPI1(request, index):  
-    if (request.method == 'GET'):
-        resultDetails = getAdByCategoryList(request, index)
-    else:
-        return HttpResponse(status = 404)
-    return HttpResponse(resultDetails[0], content_type = resultDetails[1], status = resultDetails[2])
 
 #ads/
 #GET - gauti skelbimų sąrašą
@@ -111,26 +101,23 @@ def getAdList(request):
         sql_orderby = "{} {}".format(body["sortby"], body["sortorder"])
 
 
-    with connection.cursor() as cursor:
-        sql = "SELECT * FROM public.ad WHERE is_deleted = 0 " + sql_where + " ORDER BY " + sql_orderby
-        print(sql)
-        if page > 0 and limit > 0:
-            sql += " LIMIT {} OFFSET {}".format(limit, offset)
-        cursor.execute(sql)
-        row = database.dictfetchall(cursor)
+    with transaction.atomic():
+        cursor = connection.cursor()
+        try:
+            sql = "SELECT * FROM public.ad WHERE is_deleted = 0 " + sql_where + " ORDER BY " + sql_orderby
+            if page > 0 and limit > 0:
+                sql += " LIMIT {} OFFSET {}".format(limit, offset)
+            cursor.execute(sql)
+            row = database.dictfetchall(cursor)
 
-        sql = "SELECT COUNT(*) as count FROM public.ad WHERE is_deleted = 0"
-        cursor.execute(sql)
-        rowCount = database.dictfetchall(cursor)
+            sql = "SELECT COUNT(*) as count FROM public.ad WHERE is_deleted = 0"
+            cursor.execute(sql)
+            rowCount = database.dictfetchall(cursor)
+        finally:
+            cursor.close()
     for x in row:
         x["date"] = methods.datetime_str(x["date"])
     result = methods.dumpJson({"totalCount": rowCount[0]["count"],"ads": row})
-    content_type = "application/json"
-    return [result, content_type, statusCode]
-
-def getAdByCategoryList(request, index):
-    statusCode = 200 #404
-    result = Path('skelbimai/jsonmock/adList.json').read_text(encoding = 'utf-8')
     content_type = "application/json"
     return [result, content_type, statusCode]
     
@@ -156,16 +143,19 @@ def createAd(request):
     body = body[1]
     if checkCreateAd(body) == False:
         return [result, content_type, 400]
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT COUNT(*) as count FROM public.category WHERE id = {}".format(body["category"]))
-        categoryCount = database.dictfetchall(cursor)
-        if categoryCount[0]["count"] != 1:
+    with transaction.atomic():
+        cursor = connection.cursor()
+        try:
+            cursor.execute("SELECT COUNT(*) as count FROM public.category WHERE id = {}".format(body["category"]))
+            categoryCount = database.dictfetchall(cursor)
+            if categoryCount[0]["count"] != 1:
+                return [result, content_type, 400]
+            cursor.execute("INSERT INTO public.ad (name, text, category, price, date, user_id, is_deleted) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;", [body["name"], body["text"], body["category"], body["price"], methods.currentTime(), user_id, 0])
+            ad_id = database.dictfetchall(cursor)
+            cursor.execute("SELECT * FROM public.ad WHERE id = %s", [ad_id[0]["id"]])
+            row = database.dictfetchall(cursor)
+        finally:
             cursor.close()
-            return [result, content_type, 400]
-        cursor.execute("INSERT INTO public.ad (name, text, category, price, date, user_id, is_deleted) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;", [body["name"], body["text"], body["category"], body["price"], methods.currentTime(), user_id, 0])
-        ad_id = database.dictfetchall(cursor)
-        cursor.execute("SELECT * FROM public.ad WHERE id = %s", [ad_id[0]["id"]])
-        row = database.dictfetchall(cursor)
     row[0]["date"] = methods.datetime_str(row[0]["date"])
     content_type = "application/json"
     result = methods.dumpJson(row[0])
@@ -226,27 +216,27 @@ def updateAd(request, index):
         sql_params.append(body["price"])
     sql = sql[:-2]
     sql += " WHERE id = {}".format(index)
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT user_id FROM public.ad WHERE id = {} AND is_deleted = 0".format(index))
-        rowCount = database.dictfetchall(cursor)
-        print(rowCount)
-        if len(rowCount) != 1:
-            cursor.close()
-            return [result, content_type, 404]
-        if "ads_admin" not in scope:
-            if rowCount[0]["user_id"] != user_id:
-                cursor.close()
-                return [result, content_type, 403]
-        if "category" in body:
-            cursor.execute("SELECT Count(*) as count FROM public.category WHERE id = {}".format(body["category"]))
+    with transaction.atomic():
+        cursor = connection.cursor()
+        try:
+            cursor.execute("SELECT user_id FROM public.ad WHERE id = {} AND is_deleted = 0".format(index))
             rowCount = database.dictfetchall(cursor)
-            if rowCount[0]["count"] != 1:
-                cursor.close()
-                return [result, content_type, 400]
-        
-        cursor.execute(sql, sql_params)
-        cursor.execute("SELECT * FROM public.ad WHERE id = {}".format(index))
-        row = database.dictfetchall(cursor)
+            print(rowCount)
+            if len(rowCount) != 1:
+                return [result, content_type, 404]
+            if "ads_admin" not in scope:
+                if rowCount[0]["user_id"] != user_id:
+                    return [result, content_type, 403]
+            if "category" in body:
+                cursor.execute("SELECT Count(*) as count FROM public.category WHERE id = {}".format(body["category"]))
+                rowCount = database.dictfetchall(cursor)
+                if rowCount[0]["count"] != 1:
+                    return [result, content_type, 400]        
+            cursor.execute(sql, sql_params)
+            cursor.execute("SELECT * FROM public.ad WHERE id = {}".format(index))
+            row = database.dictfetchall(cursor)
+        finally:
+            cursor.close()
     row[0]["date"] = methods.datetime_str(row[0]["date"])
     content_type = "application/json"
     result = methods.dumpJson(row[0])
@@ -261,7 +251,6 @@ def getAd(request, index):
         cursor.execute("SELECT * FROM public.ad WHERE id = {} AND is_deleted = 0".format(index))
         row = database.dictfetchall(cursor)
         if (len(row) == 0):
-            cursor.close()
             return [result, content_type, 404]
     row[0]["date"] = methods.datetime_str(row[0]["date"])
     content_type = "application_json"
@@ -280,19 +269,21 @@ def deleteAd(request, index):
         return [result, content_type, 401]
     scope = auth[1]["scope"]
     user_id = auth[1]["id"]
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT user_id FROM public.ad WHERE id = {}".format(index))
-        row = database.dictfetchall(cursor)
-        if "ads_admin" not in scope:
-            if user_id != row[0]["user_id"] and "ads" not in scope:
-                cursor.close()
-                return [result, content_type, 403]
-        cursor.execute("SELECT COUNT(*) as count FROM public.ad WHERE id = {}".format(index))
-        rowCount = database.dictfetchall(cursor)
-        if rowCount[0]["count"] != 1:
+    with transaction.atomic():
+        cursor = connection.cursor()
+        try:
+            cursor.execute("SELECT user_id FROM public.ad WHERE id = {}".format(index))
+            row = database.dictfetchall(cursor)
+            if "ads_admin" not in scope:
+                if user_id != row[0]["user_id"] and "ads" not in scope:
+                    return [result, content_type, 403]
+            cursor.execute("SELECT COUNT(*) as count FROM public.ad WHERE id = {}".format(index))
+            rowCount = database.dictfetchall(cursor)
+            if rowCount[0]["count"] != 1:
+                return [result, content_type, 404]
+            cursor.execute("UPDATE public.ad SET is_deleted = 1 WHERE id = {}".format(index))
+        finally:
             cursor.close()
-            return [result, content_type, 404]
-        cursor.execute("UPDATE public.ad SET is_deleted = 1 WHERE id = {}".format(index))
     return [result, content_type, statusCode]
 
 def checkCreateAd(body):

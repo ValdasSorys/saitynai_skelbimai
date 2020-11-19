@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from django.db import connection
+from django.db import connection, transaction
 from django.conf import settings
 import jwt
 import simplejson as json
@@ -83,18 +83,22 @@ def getUserList(request):
             limit = body["limit"]
             offset = (limit*page) - limit
     
-    with connection.cursor() as cursor:
-        sql = "SELECT id, username, name, phone, email, usersince_date, role, is_deleted FROM public.user ORDER BY id"
-        if page > 0 and limit > 0:
-            sql += " LIMIT {} OFFSET {}".format(limit, offset)
-        cursor.execute(sql)
-        row = database.dictfetchall(cursor)
-        if len(row) == 0:
+    with transaction.atomic():
+        cursor = connection.cursor()
+        try:
+            sql = "SELECT id, username, name, phone, email, usersince_date, role, is_deleted FROM public.user ORDER BY id"
+            if page > 0 and limit > 0:
+                sql += " LIMIT {} OFFSET {}".format(limit, offset)
+            cursor.execute(sql)
+            row = database.dictfetchall(cursor)
+            if len(row) == 0:
+                cursor.close()
+                return [result, content_type, 404]
+            sql = "SELECT COUNT(*) as count FROM public.user"
+            cursor.execute(sql)
+            rowCount = database.dictfetchall(cursor)
+        finally:
             cursor.close()
-            return [result, content_type, 404]
-        sql = "SELECT COUNT(*) as count FROM public.user"
-        cursor.execute(sql)
-        rowCount = database.dictfetchall(cursor)
 
     for user in row:
         user["usersince_date"] = methods.datetime_str(user["usersince_date"])
@@ -115,14 +119,18 @@ def createUser(request):
     body = body[1]
     if not checkCreateUser(body):
         return [result, content_type, 400]
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT COUNT(*) as count FROM public.user WHERE username = %s", [body["username"]])
-        row = database.dictfetchall(cursor)
-        if row[0]["count"] != 0:
-            statusCode = 409
-        else:
-            cursor.execute("INSERT INTO public.user (username, name, phone, email, usersince_date, role, is_deleted, client_id, password) VALUES (%s, %s, %s, %s, %s, %s, 0, %s, %s);",
-                [body["username"], body["name"], body["phone"], body["email"], methods.currentTime(), "user", methods.generate_client_id(), methods.hash_password(body["password"])])
+    with transaction.atomic():
+        cursor = connection.cursor()
+        try:
+            cursor.execute("SELECT COUNT(*) as count FROM public.user WHERE username = %s", [body["username"]])
+            row = database.dictfetchall(cursor)
+            if row[0]["count"] != 0:
+                statusCode = 409
+            else:
+                cursor.execute("INSERT INTO public.user (username, name, phone, email, usersince_date, role, is_deleted, client_id, password) VALUES (%s, %s, %s, %s, %s, %s, 0, %s, %s);",
+                    [body["username"], body["name"], body["phone"], body["email"], methods.currentTime(), "user", methods.generate_client_id(), methods.hash_password(body["password"])])
+        finally:
+            cursor.close()
     return [result, content_type, statusCode]
 
 def getClientId(request):
@@ -146,14 +154,11 @@ def getClientId(request):
         row = database.dictfetchall(cursor)
         if len(row) == 1:
             if not methods.verify_password(row[0]["password"], password):
-                cursor.close()
                 return [result, content_type, 401]
             else:
                 content_type = "application/json"
-                cursor.close()
                 result = json.dumps({"client_id": row[0]["client_id"]})
         else:
-            cursor.close()
             return [result, content_type, 401]
         
     return [result, content_type, statusCode]
@@ -180,10 +185,8 @@ def getToken(request):
         row = database.dictfetchall(cursor)
         if len(row) == 1:
             if row[0]["client_id"] != client_id:
-                cursor.close()
                 return [result, content_type, 401]
         else:
-            cursor.close()
             return [result, content_type, 401]
         role = row[0]["role"]
         user_id = row[0]["id"]
@@ -247,10 +250,14 @@ def updateUser(request, index):
     sql = sql[:-2]
     sql += " WHERE id = {}".format(index)
     #
-    with connection.cursor() as cursor:
-        cursor.execute(sql, sql_params)
-        cursor.execute("SELECT id, username, name, phone, email, usersince_date, role FROM public.user WHERE id = {}".format(index))
-        row = database.dictfetchall(cursor)
+    with transaction.atomic():
+        cursor = connection.cursor()
+        try:
+            cursor.execute(sql, sql_params)
+            cursor.execute("SELECT id, username, name, phone, email, usersince_date, role FROM public.user WHERE id = {}".format(index))
+            row = database.dictfetchall(cursor)
+        finally:
+            cursor.close()
 
     row[0]["usersince_date"] = methods.datetime_str(row[0]["usersince_date"])
     content_type = "application/json"
@@ -270,14 +277,18 @@ def deleteUser(request, index):
     scope = auth[1]["scope"]
     if "user_admin" not in scope:
         return [result, content_type, 403]
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT COUNT(*) as count FROM public.user WHERE id = {} AND is_deleted = 0".format(index))
-        rowCount = database.dictfetchall(cursor)
-        if rowCount[0]["count"] != 1:
+    with transaction.atomic():
+        cursor = connection.cursor()
+        try:
+            cursor.execute("SELECT COUNT(*) as count FROM public.user WHERE id = {} AND is_deleted = 0".format(index))
+            rowCount = database.dictfetchall(cursor)
+            if rowCount[0]["count"] != 1:
+                cursor.close()
+                return [result, content_type, 404]
+            cursor.execute("UPDATE public.user SET is_deleted = 1 WHERE id = {}".format(index))
+            cursor.execute("UPDATE public.ad SET is_deleted = 1 WHERE user_id = {}".format(index))
+        finally:
             cursor.close()
-            return [result, content_type, 404]
-        cursor.execute("UPDATE public.user SET is_deleted = 1 WHERE id = {}".format(index))
-        cursor.execute("UPDATE public.ad SET is_deleted = 1 WHERE user_id = {}".format(index))
         
     return [result, content_type, statusCode]
     
