@@ -106,6 +106,8 @@ def createComment(request, index):
     
     with transaction.atomic():
         with connection.cursor() as cursor:
+            if not database.check_user(cursor, user_id):
+                return ["banned", content_type, 403]
             insert_success = False
             for x in range(100):
                 try:
@@ -162,6 +164,8 @@ def updateComment(request, index1, index2):
 
     with transaction.atomic():
         with connection.cursor() as cursor:
+            if not database.check_user(cursor, user_id):
+                return ["banned", content_type, 403]
             cursor.execute("SELECT is_deleted FROM public.ad WHERE id = %s", [ad_index])
             row = database.dictfetchall(cursor)
             if len(row) != 1 or row[0]["is_deleted"] == 1:
@@ -234,7 +238,9 @@ def deleteComment(request, index1, index2):
     #    return [result, content_type, 403]
     
     with transaction.atomic():
-        with connection.cursor() as cursor:            
+        with connection.cursor() as cursor:     
+            if not database.check_user(cursor, user_id):
+                return ["banned", content_type, 403]       
             cursor.execute("SELECT user_id FROM public.comment WHERE ad_id = %s AND comment_id = %s", [ad_index, comment_index])
             row = database.dictfetchall(cursor)
             if len(row) == 0:

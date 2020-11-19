@@ -100,3 +100,4 @@ def is_email(var):
         if char not in var:
             return False
     return True
+    

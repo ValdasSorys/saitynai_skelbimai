@@ -85,6 +85,8 @@ def getUserList(request):
     
     with transaction.atomic():
         with connection.cursor() as cursor:
+            if not database.check_user(cursor, user_id):
+                return ["banned", content_type, 403]
             sql = "SELECT id, username, name, phone, email, usersince_date, role, is_deleted FROM public.user ORDER BY id"
             if page > 0 and limit > 0:
                 sql += " LIMIT {} OFFSET {}".format(limit, offset)
@@ -142,7 +144,7 @@ def getClientId(request):
     else:
         return [result, content_type, 400]
     with connection.cursor() as cursor:
-        cursor.execute("SELECT password, client_id FROM public.user WHERE username = %s", [username])
+        cursor.execute("SELECT password, client_id FROM public.user WHERE username = %s AND is_deleted = 0", [username])
         row = database.dictfetchall(cursor)
         if len(row) == 1:
             if not methods.verify_password(row[0]["password"], password):
@@ -173,7 +175,7 @@ def getToken(request):
         return [result, content_type, 401]
 
     with connection.cursor() as cursor:
-        cursor.execute("SELECT id, role, client_id FROM public.user WHERE client_id = %s", [client_id])
+        cursor.execute("SELECT id, role, client_id FROM public.user WHERE client_id = %s AND is_deleted = 0", [client_id])
         row = database.dictfetchall(cursor)
         if len(row) == 1:
             if row[0]["client_id"] != client_id:
@@ -192,11 +194,9 @@ def getToken(request):
             return [result, content_type, 403]
 
     content_type = "application/json"
-    token = jwt.encode({'exp': datetime.utcnow() + timedelta(hours=24), 'id': user_id, 'scope': " ".join(scope)}, settings.SECRET, algorithm='HS256')
-    result = json.dumps({'access_token': token, 'token_type': "bearer", 'expires_in': 86400})
+    token = jwt.encode({'exp': datetime.utcnow() + timedelta(minutes=30), 'id': user_id, 'scope': " ".join(scope)}, settings.SECRET, algorithm='HS256')
+    result = json.dumps({'access_token': token, 'token_type': "bearer", 'expires_in': 1800})
     return [result, content_type, statusCode]
-
-
 
 def updateUser(request, index):
     statusCode = 200 #401 403 404
@@ -240,17 +240,17 @@ def updateUser(request, index):
         sql += "email = %s, "
         sql_params.append(body["email"])
     sql = sql[:-2]
-    sql += " WHERE id = {}".format(index)
+    sql += " WHERE id = {} AND is_deleted = 0".format(index)
     #
     with transaction.atomic():
-        cursor = connection.cursor()
-        try:
+        with connection.cursor() as cursor:   
+            if not database.check_user(cursor, user_id):
+                return ["banned", content_type, 403]         
             cursor.execute(sql, sql_params)
+            if cursor.rowcount == 0:
+                return [result, content_type, 404]
             cursor.execute("SELECT id, username, name, phone, email, usersince_date, role FROM public.user WHERE id = {}".format(index))
             row = database.dictfetchall(cursor)
-        finally:
-            cursor.close()
-
     row[0]["usersince_date"] = methods.datetime_str(row[0]["usersince_date"])
     content_type = "application/json"
     result = methods.dumpJson(row[0])
@@ -270,6 +270,8 @@ def deleteUser(request, index):
     if "user_admin" not in scope:
         return [result, content_type, 403]
     with connection.cursor() as cursor:
+        if not database.check_user(cursor, user_id):
+                return ["banned", content_type, 403]
         cursor.execute("UPDATE public.user SET is_deleted = 1 WHERE id = {} AND is_deleted = 0".format(index))
         if cursor.rowcount == 0:
             return [result, content_type, 404]

@@ -127,7 +127,7 @@ def createAd(request):
         if auth[0] == False:
             return [result, content_type, 401]
     else:
-        return [result, content_type, 400]
+        return [result, content_type, 401]
     scope = auth[1]["scope"]
     user_id = auth[1]["id"]
     if "ads" not in scope:
@@ -142,6 +142,8 @@ def createAd(request):
         return [result, content_type, 400]
     with transaction.atomic():
         with connection.cursor() as cursor:
+            if not database.check_user(cursor, user_id):
+                return ["banned", content_type, 403]
             try:
                 cursor.execute("INSERT INTO public.ad (name, text, category, price, date, user_id, is_deleted) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;", [body["name"], body["text"], body["category"], body["price"], methods.currentTime(), user_id, 0])
             except IntegrityError:
@@ -208,6 +210,8 @@ def updateAd(request, index):
     sql += " WHERE id = {}".format(index)
     with transaction.atomic():
         with connection.cursor() as cursor:
+            if not database.check_user(cursor, user_id):
+                return ["banned", content_type, 403]
             cursor.execute("SELECT user_id FROM public.ad WHERE id = {} AND is_deleted = 0".format(index))
             rowCount = database.dictfetchall(cursor)
             if len(rowCount) != 1:
@@ -257,6 +261,8 @@ def deleteAd(request, index):
     user_id = auth[1]["id"]
     with transaction.atomic():
         with connection.cursor() as cursor:
+            if not database.check_user(cursor, user_id):
+                return ["banned", content_type, 403]
             cursor.execute("SELECT user_id FROM public.ad WHERE id = {}".format(index))
             row = database.dictfetchall(cursor)
             if "ads_admin" not in scope:
