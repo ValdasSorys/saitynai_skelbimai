@@ -142,7 +142,7 @@ def getClientId(request):
     else:
         return [result, content_type, 400]
     with connection.cursor() as cursor:
-        cursor.execute("SELECT password, client_id FROM public.user WHERE username = %s", [username])
+        cursor.execute("SELECT password, client_id FROM public.user WHERE username = %s AND is_deleted = 0", [username])
         row = database.dictfetchall(cursor)
         if len(row) == 1:
             if not methods.verify_password(row[0]["password"], password):
