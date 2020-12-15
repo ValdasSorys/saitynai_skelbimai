@@ -17,7 +17,10 @@ def adAPI2(request):
     if (request.method == 'GET'):
         resultDetails = getAdList(request)
     elif (request.method == 'POST'):
-        resultDetails = createAd(request)
+        if "actualMethod" in request.GET and request.GET["actualMethod"] == "GET/":
+            resultDetails = getAdList(request)
+        else:
+            resultDetails = createAd(request)
     else:
         return HttpResponse(status = 404)
     return HttpResponse(resultDetails[0], content_type = resultDetails[1], status = resultDetails[2])
@@ -103,13 +106,16 @@ def getAdList(request):
 
     with transaction.atomic():
         with connection.cursor() as cursor:
-            sql = "SELECT * FROM public.ad WHERE is_deleted = 0 " + sql_where + " ORDER BY " + sql_orderby
+            sql = "".join(("SELECT ad.id, ad.name, ad.text, ad.category, ad.price, ad.date, ad.user_id, public.user.username, public.user.email, public.user.phone, category.name as categoryName FROM public.ad ",
+            "INNER JOIN public.user ON ad.user_id = public.user.id ",
+            "INNER JOIN public.category ON ad.category = category.id ",
+            "WHERE ad.is_deleted = 0 " + sql_where + " ORDER BY " + sql_orderby))
             if page > 0 and limit > 0:
                 sql += " LIMIT {} OFFSET {}".format(limit, offset)
             cursor.execute(sql)
             row = database.dictfetchall(cursor)
 
-            sql = "SELECT COUNT(*) as count FROM public.ad WHERE is_deleted = 0"
+            sql = "SELECT COUNT(*) as count FROM public.ad WHERE is_deleted = 0" + sql_where;
             cursor.execute(sql)
             rowCount = database.dictfetchall(cursor)
     for x in row:
@@ -234,7 +240,10 @@ def getAd(request, index):
     result = ""
     
     with connection.cursor() as cursor:
-        cursor.execute("SELECT * FROM public.ad WHERE id = {} AND is_deleted = 0".format(index))
+        cursor.execute("".join(("SELECT ad.id, ad.name, ad.text, ad.category, ad.price, ad.date, ad.user_id, public.user.username, public.user.email, public.user.phone, category.name as categoryName FROM public.ad ",
+            "INNER JOIN public.user ON ad.user_id = public.user.id ",
+            "INNER JOIN public.category ON ad.category = category.id ",
+            "WHERE ad.id = {} AND ad.is_deleted = 0")).format(index))
         row = database.dictfetchall(cursor)
         if (len(row) == 0):
             return [result, content_type, 404]
