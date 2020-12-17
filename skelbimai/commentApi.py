@@ -18,7 +18,10 @@ def commentAPI1(request, index):
     if (request.method == 'GET'):
         resultDetails = getCommentList(request, index)
     elif (request.method == 'POST'):
-        resultDetails = createComment(request, index)
+        if "actualMethod" in request.GET and request.GET["actualMethod"] == "GET/":
+            resultDetails = getCommentList(request, index)
+        else:
+            resultDetails = createComment(request, index)
     else:
         return HttpResponse(status = 404)
     return HttpResponse(resultDetails[0], content_type = resultDetails[1], status = resultDetails[2])
@@ -65,7 +68,7 @@ def getCommentList(request, index):
         with connection.cursor() as cursor:
             sql =   "SELECT user_id, ad_id, date, text, comment_id, name "\
                     "FROM public.comment JOIN public.user ON public.comment.user_id = public.user.id "\
-                    "WHERE public.comment.ad_id = %s ORDER BY comment_id ASC"
+                    "WHERE public.comment.ad_id = %s ORDER BY comment_id DESC"
             if page > 0 and limit > 0:
                 sql += " LIMIT {} OFFSET {}".format(limit, offset)
             cursor.execute(sql, [index])
