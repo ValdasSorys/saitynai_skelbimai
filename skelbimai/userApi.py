@@ -302,7 +302,7 @@ def checkCreateUser(body):
         return False
     if not methods.is_word(body["username"], []) or len(body["username"]) > 20 or len(body["username"]) < 6:
         return False
-    if not methods.is_word(body["password"], settings.TEXT_CHARS) or len(body["password"]) > 50 or len(body["password"]) < 6:
+    if len(body["password"]) > 50 or len(body["password"]) < 6:
         return False
     if not methods.is_word(body["phone"], []) or len(body["phone"]) > 20 or len(body["phone"]) < 6 :
         return False

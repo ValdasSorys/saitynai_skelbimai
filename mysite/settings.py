@@ -129,6 +129,15 @@ CORS_ALLOW_HEADERS = [
     'redirect-uri',
     'access-control-allow-origin'
 ]
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+    'UPDATE',
+]
 
 # Internationalization
 # https://docs.djangoproject.com/en/3.1/topics/i18n/

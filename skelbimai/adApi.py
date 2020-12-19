@@ -133,7 +133,7 @@ def createAd(request):
         if auth[0] == False:
             return [result, content_type, 401]
     else:
-        return [result, content_type, 400]
+        return [result, content_type, 401]
     scope = auth[1]["scope"]
     user_id = auth[1]["id"]
     if "ads" not in scope:
@@ -153,7 +153,10 @@ def createAd(request):
             except IntegrityError:
                 return [result, content_type, 400]
             ad_id = database.dictfetchall(cursor)
-            cursor.execute("SELECT * FROM public.ad WHERE id = %s", [ad_id[0]["id"]])
+            cursor.execute("".join(("SELECT ad.id, ad.name, ad.text, ad.category, ad.price, ad.date, ad.user_id, public.user.username, public.user.email, public.user.phone, category.name as categoryName FROM public.ad ",
+            "INNER JOIN public.user ON ad.user_id = public.user.id ",
+            "INNER JOIN public.category ON ad.category = category.id ",
+            "WHERE ad.id = {} AND ad.is_deleted = 0")).format(ad_id[0]["id"]))
             row = database.dictfetchall(cursor)
     row[0]["date"] = methods.datetime_str(row[0]["date"])
     content_type = "application/json"
@@ -190,12 +193,12 @@ def updateAd(request, index):
     sql = "UPDATE public.ad SET "
     sql_params = []
     if "name" in body:
-        if not methods.is_word(body["name"], settings.TEXT_CHARS) or len(body["name"]) > 20  or len(body["name"]) < 6 or not methods.is_word(body["name"], [' ']):
+        if len(body["name"]) > 100  or len(body["name"]) < 6:
             return [result, content_type, 400]
         sql += "name = %s, "
         sql_params.append(body["name"])
     if "text" in body:
-        if not methods.is_word(body["name"], settings.TEXT_CHARS) or len(body["text"]) > 5000  or len(body["text"]) < 6:
+        if len(body["text"]) > 2000  or len(body["text"]) < 1:
             return [result, content_type, 400]
         sql += "text = %s, "
         sql_params.append(body["text"])
@@ -212,6 +215,7 @@ def updateAd(request, index):
         sql_params.append(body["price"])
     sql = sql[:-2]
     sql += " WHERE id = {}".format(index)
+    print(sql)
     with transaction.atomic():
         with connection.cursor() as cursor:
             cursor.execute("SELECT user_id FROM public.ad WHERE id = {} AND is_deleted = 0".format(index))
@@ -227,7 +231,11 @@ def updateAd(request, index):
                 return [result, content_type, 400]
             if cursor.rowcount == 0:
                 return [result, content_type, 404]
-            cursor.execute("SELECT * FROM public.ad WHERE id = {}".format(index))
+            #cursor.execute("SELECT * FROM public.ad WHERE id = {}".format(index))
+            cursor.execute("".join(("SELECT ad.id, ad.name, ad.text, ad.category, ad.price, ad.date, ad.user_id, public.user.username, public.user.email, public.user.phone, category.name as categoryName FROM public.ad ",
+            "INNER JOIN public.user ON ad.user_id = public.user.id ",
+            "INNER JOIN public.category ON ad.category = category.id ",
+            "WHERE ad.id = {} AND ad.is_deleted = 0")).format(index))
             row = database.dictfetchall(cursor)
     row[0]["date"] = methods.datetime_str(row[0]["date"])
     content_type = "application/json"
@@ -279,9 +287,9 @@ def deleteAd(request, index):
 def checkCreateAd(body):
     if "name" not in body or "text" not in body or "category" not in body or "price" not in body:
         return False
-    if not methods.is_word(body["name"], settings.TEXT_CHARS) or len(body["name"]) > 20 or len(body["name"]) < 6:
+    if len(body["name"]) > 100 or len(body["name"]) < 6:
         return False
-    if not methods.is_word(body["text"], settings.TEXT_CHARS) or len(body["text"]) > 5000 or len(body["text"]) < 6:
+    if len(body["text"]) > 2000 or len(body["text"]) < 1:
         return False
     if isinstance(body["category"], int) == False:
         return False
