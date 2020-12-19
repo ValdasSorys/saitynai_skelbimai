@@ -66,6 +66,9 @@ def decode_token(auth):
             except jwt.ExpiredSignatureError:
                 success = False
                 result = "expired"
+        else:
+            success = False
+            result = "wrong_token"
     else:
         success = False
         result = "wrong_input"

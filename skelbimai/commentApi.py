@@ -66,8 +66,11 @@ def getCommentList(request, index):
 
     with transaction.atomic():
         with connection.cursor() as cursor:
-            sql =   "SELECT user_id, ad_id, date, text, comment_id, name "\
-                    "FROM public.comment JOIN public.user ON public.comment.user_id = public.user.id "\
+            sql = "SELECT public.comment.user_id, public.comment.ad_id, public.comment.date, public.comment.text, comment_id, userWriter.username as username, ad.user_id as idowner "\
+                    "FROM public.comment "\
+                    "INNER JOIN public.user AS userWriter ON public.comment.user_id = userWriter.id "\
+                    "INNER JOIN public.ad AS ad ON public.comment.ad_id = ad.id "\
+                    "INNER JOIN public.user AS userOwner ON ad.user_id = userOwner.id "\
                     "WHERE public.comment.ad_id = %s ORDER BY comment_id DESC"
             if page > 0 and limit > 0:
                 sql += " LIMIT {} OFFSET {}".format(limit, offset)
@@ -104,7 +107,7 @@ def createComment(request, index):
         return [result, content_type, 400]
     body_empty = body[0]
     body = body[1]
-    if "text" not in body or not methods.is_word(body["text"], settings.TEXT_CHARS) or len(body["text"]) > 300 or len(body["text"]) < 1:
+    if "text" not in body or len(body["text"]) > 300 or len(body["text"]) < 1:
         return [result, content_type, 400]
     
     with transaction.atomic():
@@ -160,7 +163,7 @@ def updateComment(request, index1, index2):
     body_empty = body[0]
     body = body[1]
 
-    if "text" not in body or not methods.is_word(body["text"], settings.TEXT_CHARS) or len(body["text"]) > 300 or len(body["text"]) < 1:
+    if "text" not in body or len(body["text"]) > 300 or len(body["text"]) < 1:
         return [result, content_type, 400]
 
     with transaction.atomic():
@@ -181,9 +184,13 @@ def updateComment(request, index1, index2):
             cursor.execute("UPDATE public.comment SET text = %s, date = %s WHERE ad_id = %s AND comment_id = %s", [body["text"], methods.currentTime(), ad_index, comment_index])
             if cursor.rowcount == 0:
                 return [result, content_type, 404]
-            cursor.execute( "SELECT user_id, ad_id, date, text, comment_id, name " +
-                            "FROM public.comment JOIN public.user ON public.comment.user_id = public.user.id " +
-                            "WHERE public.comment.ad_id = %s AND public.comment.comment_id = %s", [ad_index, comment_index])
+            sql = "SELECT public.comment.user_id, public.comment.ad_id, public.comment.date, public.comment.text, comment_id, userWriter.username as username, ad.user_id as idowner "\
+                    "FROM public.comment "\
+                    "INNER JOIN public.user AS userWriter ON public.comment.user_id = userWriter.id "\
+                    "INNER JOIN public.ad AS ad ON public.comment.ad_id = ad.id "\
+                    "INNER JOIN public.user AS userOwner ON ad.user_id = userOwner.id "\
+                    "WHERE public.comment.ad_id = %s AND public.comment.comment_id = %s ORDER BY comment_id DESC"
+            cursor.execute( sql, [ad_index, comment_index])
             row = database.dictfetchall(cursor)
 
     row[0]["date"] = methods.datetime_str(row[0]["date"])

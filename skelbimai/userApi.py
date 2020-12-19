@@ -209,6 +209,7 @@ def updateUser(request, index):
             return [result, content_type, 401]
     else:
         return [result, content_type, 401]
+    print(auth)
     scope = auth[1]["scope"]
     user_id = auth[1]["id"]
     
