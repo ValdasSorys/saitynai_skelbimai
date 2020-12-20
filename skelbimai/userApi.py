@@ -142,14 +142,14 @@ def getClientId(request):
     else:
         return [result, content_type, 400]
     with connection.cursor() as cursor:
-        cursor.execute("SELECT password, client_id FROM public.user WHERE username = %s AND is_deleted = 0", [username])
+        cursor.execute("SELECT password, client_id, role FROM public.user WHERE username = %s AND is_deleted = 0", [username])
         row = database.dictfetchall(cursor)
         if len(row) == 1:
             if not methods.verify_password(row[0]["password"], password):
                 return [result, content_type, 401]
             else:
                 content_type = "application/json"
-                result = json.dumps({"client_id": row[0]["client_id"]})
+                result = json.dumps({"client_id": row[0]["client_id"], "role":row[0]["role"]})
         else:
             return [result, content_type, 401]
         
@@ -226,7 +226,7 @@ def updateUser(request, index):
     sql = "UPDATE public.user SET "
     sql_params = []
     if "name" in body:
-        if not methods.is_word(body["name"], []) or len(body["name"]) > 20  or len(body["name"]) < 6:
+        if not methods.is_word(body["name"], []) or len(body["name"]) > 20  or len(body["name"]) < 2:
             return [result, content_type, 400]
         sql += "name = %s, "
         sql_params.append(body["name"])

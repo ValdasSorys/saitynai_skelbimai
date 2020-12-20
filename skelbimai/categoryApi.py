@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from django.db import connection, transaction
+from django.db import connection, transaction, IntegrityError
 from django.conf import settings
 import jwt
 import simplejson as json
@@ -43,7 +43,7 @@ def getCategoryList(request):
     result = ""
     content_type = ""
     with connection.cursor() as cursor:
-        cursor.execute("SELECT * FROM public.category ORDER BY id")
+        cursor.execute("SELECT * FROM public.category ORDER BY name")
         row = database.dictfetchall(cursor)
     if (len(row) == 0):
         return [result, content_type, 404]
@@ -73,7 +73,7 @@ def createCategory(request):
 
     if "name" not in body:
         return [result, content_type, 400]
-    if methods.is_word(body["name"], settings.TEXT_CHARS) == False:
+    if len(body["name"]) > 20 or len(body["name"]) < 2:
         return [result, content_type, 400]
     with connection.cursor() as cursor:
         try:
@@ -108,11 +108,14 @@ def updateCategory(request, index):
 
     if "name" not in body:
         return [result, content_type, 400]
-    if not methods.is_word(body["name"], settings.TEXT_CHARS) or len(body["name"]) > 20 or len(body["name"]) < 6:
+    if len(body["name"]) > 20 or len(body["name"]) < 2:
         return [result, content_type, 400]
     
     with connection.cursor() as cursor:
-        cursor.execute("UPDATE public.category SET name = %s WHERE id = %s", [body["name"], index])
+        try:
+            cursor.execute("UPDATE public.category SET name = %s WHERE id = %s", [body["name"], index])
+        except IntegrityError:
+            return [result, content_type, 409]
         if cursor.rowcount == 0:
             return [result, content_type, 404]
 
@@ -148,7 +151,10 @@ def deleteCategory(request, index):
     if "categories_admin" not in scope:
         return [result, content_type, 403]
     with connection.cursor() as cursor:
-        cursor.execute("DELETE FROM public.category WHERE id = {}".format(index))
+        try:
+            cursor.execute("DELETE FROM public.category WHERE id = {}".format(index))
+        except IntegrityError:
+            return [result, content_type, 409]
         if cursor.rowcount == 0:
             return [result, content_type, 404]
     return [result, content_type, statusCode]
